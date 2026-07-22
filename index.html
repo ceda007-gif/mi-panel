@@ -252,23 +252,81 @@
                     const div = document.createElement('div');
                     div.className = 'audio-item bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between border border-gray-700 gap-4';
                     div.innerHTML = `
-                        <div class="font-mono text-xs sm:text-sm text-gray-300 w-full sm:w-1/3 truncate text-center sm:text-left mb-2 sm:mb-0">${itemRef.name}</div>
-                        <div class="flex items-center gap-2 w-full sm:w-2/3">
-                            <audio controls src="${url}" class="w-full h-10"></audio>
-                            <button class="btn-speed bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white px-2 py-1 rounded font-bold shadow transition-colors text-xs shrink-0" title="Velocidad">
-                                1x
-                            </button>
-                            <button class="btn-delete p-2 rounded-full hover:bg-rose-500/20 text-rose-500 transition-colors shrink-0" title="Eliminar">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
+                        <div class="flex flex-col w-full gap-3">
+                            <div class="flex items-center justify-between w-full">
+                                <div class="font-mono text-xs sm:text-sm text-gray-300 truncate pr-2">${itemRef.name}</div>
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <button class="btn-speed bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white px-2 py-1 rounded font-bold shadow transition-colors text-xs w-9 text-center" title="Velocidad">
+                                        1x
+                                    </button>
+                                    <button class="btn-delete p-1 rounded-full hover:bg-rose-500/20 text-rose-500 transition-colors" title="Eliminar">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 w-full bg-gray-900/60 p-2 rounded-lg border border-gray-700/50">
+                                <button class="btn-play text-accent-500 hover:text-accent-400 focus:outline-none transition-colors shrink-0">
+                                    <svg class="w-8 h-8 play-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+                                    <svg class="w-8 h-8 pause-icon hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                                </button>
+                                <span class="text-xs text-gray-400 font-mono w-10 text-right shrink-0 time-current">0:00</span>
+                                <input type="range" class="progress-bar flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-accent-500 min-w-0" min="0" max="100" value="0" step="0.1">
+                                <span class="text-xs text-gray-400 font-mono w-10 shrink-0 time-total">0:00</span>
+                            </div>
                         </div>
                     `;
                     
-                    const audio = div.querySelector('audio');
+                    const audio = new Audio(url);
+                    const btnPlay = div.querySelector('.btn-play');
+                    const playIcon = btnPlay.querySelector('.play-icon');
+                    const pauseIcon = btnPlay.querySelector('.pause-icon');
+                    const progressBar = div.querySelector('.progress-bar');
+                    const timeCurrent = div.querySelector('.time-current');
+                    const timeTotal = div.querySelector('.time-total');
                     const btnSpeed = div.querySelector('.btn-speed');
                     let currentSpeed = 1.0;
+
+                    function formatTime(seconds) {
+                        if (isNaN(seconds)) return "0:00";
+                        const m = Math.floor(seconds / 60);
+                        const s = Math.floor(seconds % 60);
+                        return m + ":" + (s < 10 ? "0" : "") + s;
+                    }
+
+                    audio.addEventListener('loadedmetadata', () => {
+                        progressBar.max = audio.duration;
+                        timeTotal.textContent = formatTime(audio.duration);
+                    });
+
+                    audio.addEventListener('timeupdate', () => {
+                        progressBar.value = audio.currentTime;
+                        timeCurrent.textContent = formatTime(audio.currentTime);
+                    });
+
+                    progressBar.addEventListener('input', () => {
+                        audio.currentTime = progressBar.value;
+                    });
+
+                    btnPlay.addEventListener('click', () => {
+                        if (audio.paused) {
+                            audio.play().catch(e => alert("Error al reproducir: " + e.message));
+                            playIcon.classList.add('hidden');
+                            pauseIcon.classList.remove('hidden');
+                        } else {
+                            audio.pause();
+                            playIcon.classList.remove('hidden');
+                            pauseIcon.classList.add('hidden');
+                        }
+                    });
+
+                    audio.addEventListener('ended', () => {
+                        playIcon.classList.remove('hidden');
+                        pauseIcon.classList.add('hidden');
+                        progressBar.value = 0;
+                        timeCurrent.textContent = "0:00";
+                    });
                     
                     btnSpeed.addEventListener('click', () => {
                         if (currentSpeed === 1.0) currentSpeed = 1.5;
