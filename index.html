@@ -253,9 +253,12 @@
                     div.className = 'audio-item bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between border border-gray-700 gap-4';
                     div.innerHTML = `
                         <div class="font-mono text-xs sm:text-sm text-gray-300 flex-1 w-full truncate text-center sm:text-left">${itemRef.name}</div>
-                        <div class="flex items-center justify-center gap-3 mt-2 sm:mt-0 w-full sm:w-auto">
+                        <div class="flex items-center justify-center gap-2 mt-2 sm:mt-0 w-full sm:w-auto">
                             <button class="btn-play bg-accent-600 hover:bg-accent-500 text-white px-4 py-2 rounded-lg font-bold shadow transition-colors text-sm" title="Reproducir">
                                 ▶ Play
+                            </button>
+                            <button class="btn-speed bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white px-3 py-2 rounded-lg font-bold shadow transition-colors text-sm w-12" title="Velocidad">
+                                1x
                             </button>
                             <button class="btn-delete bg-gray-700 hover:bg-rose-600 text-gray-300 hover:text-white px-4 py-2 rounded-lg font-bold shadow transition-colors text-sm" title="Eliminar">
                                 🗑️
@@ -266,7 +269,26 @@
                     let isPlaying = false;
                     let audio = new Audio(url);
                     const btnPlay = div.querySelector('.btn-play');
+                    const btnSpeed = div.querySelector('.btn-speed');
+                    let currentSpeed = 1.0;
                     
+                    btnSpeed.addEventListener('click', () => {
+                        if (currentSpeed === 1.0) currentSpeed = 1.5;
+                        else if (currentSpeed === 1.5) currentSpeed = 2.0;
+                        else currentSpeed = 1.0;
+                        
+                        audio.playbackRate = currentSpeed;
+                        btnSpeed.innerHTML = currentSpeed + 'x';
+                        
+                        if (currentSpeed > 1.0) {
+                            btnSpeed.classList.replace('bg-gray-700', 'bg-accent-600');
+                            btnSpeed.classList.replace('text-gray-300', 'text-white');
+                        } else {
+                            btnSpeed.classList.replace('bg-accent-600', 'bg-gray-700');
+                            btnSpeed.classList.replace('text-white', 'text-gray-300');
+                        }
+                    });
+
                     audio.addEventListener('ended', () => {
                         isPlaying = false;
                         btnPlay.innerHTML = '▶ Play';
