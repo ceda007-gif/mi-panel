@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecurityMic Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gray: { 900: '#111827', 800: '#1F2937', 700: '#374151' },
+                        accent: { 500: '#3B82F6', 600: '#2563EB' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .pulse-btn:active { transform: scale(0.95); }
+        .audio-item { transition: all 0.2s; }
+        .audio-item:hover { background: rgba(51, 65, 85, 0.8); transform: translateX(5px); }
+        audio { height: 35px; outline: none; border-radius: 99px; }
+        audio::-webkit-media-controls-panel { background-color: #334155; color: white; }
+    </style>
+</head>
+<body class="min-h-screen p-6 flex flex-col items-center justify-center">
+
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-screen" class="w-full max-w-md glass-panel rounded-2xl p-8 shadow-2xl">
+        <h1 class="text-3xl font-bold mb-6 text-center text-accent-500 flex items-center justify-center gap-3">
+            <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+            SecurityMic
+        </h1>
+        <p class="text-gray-400 text-center mb-8 text-sm">Acceso Privado a Panel de Control</p>
+        
+        <form id="login-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-300 mb-1">Correo Electrónico</label>
+                <input type="email" id="login-email" required class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-gray-200 focus:outline-none focus:border-accent-500">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-300 mb-1">Contraseña</label>
+                <input type="password" id="login-password" required class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-gray-200 focus:outline-none focus:border-accent-500">
+            </div>
+            <button type="submit" class="w-full pulse-btn bg-accent-600 hover:bg-accent-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg mt-4 transition-all">
+                Ingresar al Sistema
+            </button>
+            <p id="login-error" class="text-rose-400 text-sm text-center font-semibold mt-2 hidden"></p>
+        </form>
+    </div>
+
+    <!-- PANTALLA DEL DASHBOARD (Oculta por defecto) -->
+    <div id="dashboard-screen" class="w-full flex-col items-center hidden mt-10">
+        <div class="w-full max-w-3xl flex justify-between items-center mb-4 px-2">
+            <p class="text-gray-400 text-sm">Sesión iniciada: <span id="user-email-display" class="font-bold text-accent-400"></span></p>
+            <button id="btn-logout" class="text-gray-400 hover:text-white text-sm font-semibold transition-colors">Cerrar Sesión</button>
+        </div>
+
+        <div class="w-full max-w-3xl glass-panel rounded-2xl p-8 shadow-2xl mb-8">
+            <h1 class="text-3xl font-bold mb-2 flex items-center gap-3">
+            <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+            Panel de Control - SecurityMic
+        </h1>
+        <p class="text-gray-400 mb-8">Control remoto y grabaciones en tiempo real (V1 API)</p>
+
+        <div id="recording-indicator" class="hidden flex items-center justify-center p-4 bg-rose-900/30 border border-rose-500 rounded-lg mb-6 animate-pulse">
+            <span class="text-rose-400 font-bold text-lg flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+                EL TELÉFONO ESTÁ ESCUCHANDO / GRABANDO
+            </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <button id="btn-start-vad" class="pulse-btn bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-emerald-500/30 transition-all text-sm">
+                ▶ Por Voz
+            </button>
+            <button id="btn-start-cont" class="pulse-btn bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/30 transition-all text-sm">
+                ▶ Continuo
+            </button>
+            <button id="btn-start-live" class="pulse-btn bg-orange-600 hover:bg-orange-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-orange-500/30 transition-all text-sm border-2 border-orange-400 animate-pulse">
+                🔴 EN VIVO
+            </button>
+            <button id="btn-stop" class="pulse-btn bg-rose-600 hover:bg-rose-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-rose-500/30 transition-all text-sm">
+                ■ Detener
+            </button>
+        </div>
+
+        <div id="manual-json-upload" class="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-700 hidden">
+            <label class="block text-sm font-semibold text-gray-300 mb-2">Autenticación Manual (Falta en Firestore):</label>
+            <input type="file" id="service-account-file" accept=".json" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent-600 file:text-white hover:file:bg-accent-500 cursor-pointer">
+            <p class="text-xs text-gray-500 mt-3">
+                1. Ve a Firebase Console -> Configuración del proyecto -> Cuentas de servicio.<br>
+                2. Haz clic en "Generar nueva clave privada".<br>
+                3. Carga el archivo JSON descargado aquí para habilitar los botones.
+            </p>
+            <p id="auth-status" class="text-xs font-bold text-rose-400 mt-2">❌ Buscando llaves seguras...</p>
+        </div>
+    </div>
+
+    <div class="w-full max-w-3xl glass-panel rounded-2xl p-8 shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">Audios Capturados</h2>
+            <button id="btn-refresh" class="text-accent-500 hover:text-accent-400 text-sm font-semibold transition-colors">↻ Actualizar</button>
+        </div>
+        
+        <div id="audio-list" class="space-y-3">
+            <div class="text-center text-gray-500 py-8">Inicia sesión para ver las grabaciones.</div>
+        </div>
+    </div>
+    </div> <!-- Cierre del Dashboard -->
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+        import { getStorage, ref, listAll, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-storage.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD5PIQLPmkX_sjTrinltmnx_wevqYpCRqI",
+            authDomain: "securitymic.firebaseapp.com",
+            projectId: "securitymic",
+            storageBucket: "securitymic.firebasestorage.app",
+            messagingSenderId: "782515538380",
+            appId: "1:782515538380:web:36f6c6e13c3c862d7af569",
+            measurementId: "G-FXWVQ8VLZJ"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const storage = getStorage(app);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        const audioList = document.getElementById('audio-list');
+        const loginScreen = document.getElementById('login-screen');
+        const dashboardScreen = document.getElementById('dashboard-screen');
+
+        let serviceAccount = null;
+
+        // -- MANEJO DE AUTENTICACIÓN --
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // Usuario logueado
+                document.body.classList.remove('justify-center');
+                loginScreen.classList.add('hidden');
+                dashboardScreen.classList.remove('hidden');
+                dashboardScreen.classList.add('flex');
+                document.getElementById('user-email-display').textContent = user.email;
+                
+                loadAudios();
+                await fetchServiceAccountFromFirestore();
+                checkRecordingStatus();
+            } else {
+                // Usuario deslogueado
+                document.body.classList.add('justify-center');
+                loginScreen.classList.remove('hidden');
+                dashboardScreen.classList.add('hidden');
+                dashboardScreen.classList.remove('flex');
+                audioList.innerHTML = '<div class="text-center text-gray-500 py-8">Inicia sesión para ver las grabaciones.</div>';
+                serviceAccount = null;
+            }
+        });
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const pass = document.getElementById('login-password').value;
+            const errP = document.getElementById('login-error');
+            errP.classList.add('hidden');
+            
+            try {
+                await signInWithEmailAndPassword(auth, email, pass);
+            } catch (error) {
+                console.error("Auth error:", error);
+                errP.textContent = "Error: " + error.code + " - " + error.message;
+                errP.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('btn-logout').addEventListener('click', () => {
+            signOut(auth);
+            stopLiveMode();
+        });
+
+        // -- MANEJO DE SECRETO FCM --
+        async function fetchServiceAccountFromFirestore() {
+            try {
+                const docRef = doc(db, "secrets", "fcm_key");
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    serviceAccount = JSON.parse(docSnap.data().json);
+                    document.getElementById('auth-status').textContent = "✅ Llave secreta cargada desde la nube de forma segura.";
+                    document.getElementById('auth-status').className = "text-xs font-bold text-emerald-400 mt-2";
+                    document.getElementById('manual-json-upload').classList.add('hidden');
+                } else {
+                    throw new Error("No existe en Firestore");
+                }
+            } catch (e) {
+                console.warn("No se pudo cargar el JSON desde Firestore. Usando modo manual.");
+                document.getElementById('manual-json-upload').classList.remove('hidden');
+                document.getElementById('auth-status').textContent = "⚠️ Llave en la nube no encontrada. Sube el archivo JSON.";
+                document.getElementById('auth-status').className = "text-xs font-bold text-orange-400 mt-2";
+            }
+        }
+
+        // Manejar el archivo JSON
+        document.getElementById('service-account-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    serviceAccount = JSON.parse(e.target.result);
+                    if (serviceAccount.project_id && serviceAccount.private_key && serviceAccount.client_email) {
+                        document.getElementById('auth-status').textContent = "✅ Autenticado correctamente";
+                        document.getElementById('auth-status').className = "text-xs font-bold text-emerald-400 mt-2";
+                    } else {
+                        throw new Error("JSON inválido");
+                    }
+                } catch (err) {
+                    alert("El archivo JSON no parece ser una clave de cuenta de servicio de Firebase válida.");
+                    serviceAccount = null;
+                    document.getElementById('auth-status').textContent = "❌ Error al leer el archivo";
+                    document.getElementById('auth-status').className = "text-xs font-bold text-rose-400 mt-2";
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        async function loadAudios() {
+            audioList.innerHTML = '<div class="text-center text-gray-500 py-8">Cargando grabaciones...</div>';
+            try {
+                const listRef = ref(storage, 'audios');
+                const res = await listAll(listRef);
+                audioList.innerHTML = '';
+                
+                if (res.items.length === 0) {
+                    audioList.innerHTML = '<div class="text-center text-gray-500 py-8">No hay grabaciones aún.</div>';
+                    return;
+                }
+
+                for (const itemRef of res.items) {
+                    const url = await getDownloadURL(itemRef);
+                    const div = document.createElement('div');
+                    div.className = 'audio-item bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between border border-gray-700 gap-4';
+                    div.innerHTML = `
+                        <div class="font-mono text-sm text-gray-300 flex-1 truncate">${itemRef.name}</div>
+                        <div class="flex items-center gap-3">
+                            <audio controls src="${url}" class="w-full sm:w-64"></audio>
+                            <button class="btn-delete p-2 rounded-full hover:bg-rose-500/20 text-rose-500 transition-colors" title="Eliminar">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    `;
+                    div.querySelector('.btn-delete').addEventListener('click', async () => {
+                        if(confirm('¿Estás seguro de que deseas eliminar este audio?')) {
+                            try {
+                                await deleteObject(itemRef);
+                                div.remove();
+                                if(audioList.children.length === 0) {
+                                    audioList.innerHTML = '<div class="text-center text-gray-500 py-8">No hay grabaciones aún.</div>';
+                                }
+                            } catch (e) {
+                                alert('Error al eliminar: ' + e.message);
+                            }
+                        }
+                    });
+                    audioList.appendChild(div);
+                }
+            } catch (error) {
+                console.error("Error loading audios", error);
+                audioList.innerHTML = '<div class="text-red-400 py-4">Error al cargar los audios. ¿Configuraste las reglas de Storage como públicas?</div>';
+            }
+        }
+
+        async function getAccessToken() {
+            if (!serviceAccount) return null;
+
+            const header = {
+                alg: "RS256",
+                typ: "JWT"
+            };
+            
+            const now = Math.floor(Date.now() / 1000);
+            const payload = {
+                iss: serviceAccount.client_email,
+                scope: "https://www.googleapis.com/auth/firebase.messaging",
+                aud: "https://oauth2.googleapis.com/token",
+                exp: now + 3600,
+                iat: now
+            };
+
+            try {
+                const jwt = KJUR.jws.JWS.sign("RS256", JSON.stringify(header), JSON.stringify(payload), serviceAccount.private_key);
+                
+                const res = await fetch("https://oauth2.googleapis.com/token", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
+                });
+
+                const data = await res.json();
+                if (data.access_token) return data.access_token;
+                console.error("Error obteniendo token:", data);
+                return null;
+            } catch (err) {
+                console.error("Error firmando JWT:", err);
+                return null;
+            }
+        }
+
+        async function sendPush(command) {
+            if (!serviceAccount) {
+                alert('Por favor carga el archivo JSON de tu Cuenta de Servicio primero.');
+                return;
+            }
+            
+            const btnId = command === 'START_MIC_VAD' ? 'btn-start-vad' : (command === 'START_MIC_CONT' ? 'btn-start-cont' : 'btn-stop');
+            const btn = document.getElementById(btnId);
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Enviando...';
+
+            try {
+                const token = await getAccessToken();
+                if (!token) {
+                    alert("Error generating access token. Revisa la consola.");
+                    return;
+                }
+
+                const payload = {
+                    message: {
+                        topic: "security",
+                        data: {
+                            command: command
+                        },
+                        android: {
+                            priority: "high"
+                        }
+                    }
+                };
+
+                const res = await fetch(`https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    alert('¡Comando enviado exitosamente al teléfono!');
+                } else {
+                    const errData = await res.json();
+                    console.error(errData);
+                    alert('Error enviando notificación: ' + (errData.error?.message || 'Revisa la consola'));
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Error de red: ' + e.message);
+            } finally {
+                btn.innerHTML = originalText;
+            }
+        }
+
+        document.getElementById('btn-refresh').addEventListener('click', loadAudios);
+        document.getElementById('btn-start-vad').addEventListener('click', () => sendPush('START_MIC_VAD'));
+        document.getElementById('btn-start-cont').addEventListener('click', () => sendPush('START_MIC_CONT'));
+        document.getElementById('btn-start-live').addEventListener('click', () => startLiveMode());
+        document.getElementById('btn-stop').addEventListener('click', () => {
+            stopLiveMode();
+            sendPush('STOP_MIC');
+        });
+
+        // --- LÓGICA DE ESCUCHA EN VIVO ---
+        let liveInterval = null;
+        let lastLiveId = -1;
+        let audioCtx = null;
+        let nextStartTime = 0;
+
+        function startLiveMode() {
+            sendPush('START_MIC_LIVE');
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            nextStartTime = audioCtx.currentTime;
+            lastLiveId = -1;
+            
+            if (liveInterval) clearInterval(liveInterval);
+            liveInterval = setInterval(pollLiveAudio, 1000);
+            
+            document.getElementById('btn-start-live').innerHTML = "Escuchando...";
+            document.getElementById('btn-start-live').classList.replace('bg-orange-600', 'bg-orange-400');
+        }
+
+        function stopLiveMode() {
+            if (liveInterval) {
+                clearInterval(liveInterval);
+                liveInterval = null;
+            }
+            document.getElementById('btn-start-live').innerHTML = "🔴 EN VIVO";
+            document.getElementById('btn-start-live').classList.replace('bg-orange-400', 'bg-orange-600');
+        }
+
+        async function pollLiveAudio() {
+            try {
+                const liveRef = ref(storage, 'status/live.txt');
+                const url = await getDownloadURL(liveRef);
+                const response = await fetch(url + "&t=" + Date.now()); // Prevent cache
+                const data = await response.json();
+                
+                if (data.id > lastLiveId) {
+                    lastLiveId = data.id;
+                    playBase64Audio(data.audio);
+                }
+            } catch (e) {
+                // Ignore 404s when live chunk is not yet ready
+            }
+        }
+
+        function playBase64Audio(base64) {
+            const binary = atob(base64);
+            const len = binary.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+            
+            const int16 = new Int16Array(bytes.buffer);
+            const float32 = new Float32Array(int16.length);
+            for (let i = 0; i < int16.length; i++) {
+                float32[i] = int16[i] / 32768.0;
+            }
+            
+            const audioBuffer = audioCtx.createBuffer(1, float32.length, 16000);
+            audioBuffer.copyToChannel(float32, 0);
+            
+            const source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioCtx.destination);
+            
+            if (nextStartTime < audioCtx.currentTime) {
+                nextStartTime = audioCtx.currentTime + 0.1; // Small buffer if we lagged
+            }
+            source.start(nextStartTime);
+            nextStartTime += audioBuffer.duration;
+        }
+
+        async function checkRecordingStatus() {
+            try {
+                const statusRef = ref(storage, 'status/state.txt');
+                await getDownloadURL(statusRef);
+                document.getElementById('recording-indicator').classList.remove('hidden');
+            } catch (e) {
+                document.getElementById('recording-indicator').classList.add('hidden');
+            }
+        }
+
+        setInterval(checkRecordingStatus, 4000);
+        
+        // El inicio de sesión disparará el chequeo inicial.
+    </script>
+</body>
+</html>
