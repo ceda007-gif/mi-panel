@@ -122,7 +122,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
         import { getStorage, ref, listAll, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-storage.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyD5PIQLPmkX_sjTrinltmnx_wevqYpCRqI",
@@ -251,10 +251,22 @@
                     const url = await getDownloadURL(itemRef);
                     const div = document.createElement('div');
                     div.className = 'audio-item bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between border border-gray-700 gap-4';
+                    
+                    // Parse timestamp from name e.g. stealth_audio_123456789.wav
+                    let dateStr = "";
+                    const match = itemRef.name.match(/_(\d+)\.wav$/);
+                    if (match && match[1]) {
+                        const date = new Date(parseInt(match[1]));
+                        dateStr = date.toLocaleString();
+                    }
+
                     div.innerHTML = `
                         <div class="flex flex-col w-full gap-3">
                             <div class="flex items-center justify-between w-full">
-                                <div class="font-mono text-xs sm:text-sm text-gray-300 truncate pr-2">${itemRef.name}</div>
+                                <div class="flex flex-col truncate pr-2">
+                                    <span class="font-mono text-xs sm:text-sm text-gray-300 truncate">${itemRef.name}</span>
+                                    <span class="text-[10px] text-gray-500 mt-0.5">${dateStr}</span>
+                                </div>
                                 <div class="flex items-center gap-2 shrink-0">
                                     <button class="btn-speed bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white px-2 py-1 rounded font-bold shadow transition-colors text-xs w-9 text-center" title="Velocidad">
                                         1x
@@ -466,10 +478,10 @@
         });
 
         // --- LÓGICA DE ESCUCHA EN VIVO ---
-        let liveInterval = null;
         let lastLiveId = -1;
         let audioCtx = null;
         let nextStartTime = 0;
+        let unsubscribeLive = null;
 
         function startLiveMode() {
             sendPush('START_MIC_LIVE');
@@ -481,36 +493,33 @@
             nextStartTime = audioCtx.currentTime;
             lastLiveId = -1;
             
-            if (liveInterval) clearInterval(liveInterval);
-            liveInterval = setInterval(pollLiveAudio, 1000);
+            if (unsubscribeLive) {
+                unsubscribeLive();
+                unsubscribeLive = null;
+            }
+            
+            const liveDocRef = doc(db, 'status', 'live');
+            unsubscribeLive = onSnapshot(liveDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.id > lastLiveId) {
+                        lastLiveId = data.id;
+                        playBase64Audio(data.audio);
+                    }
+                }
+            });
             
             document.getElementById('btn-start-live').innerHTML = "Escuchando...";
             document.getElementById('btn-start-live').classList.replace('bg-orange-600', 'bg-orange-400');
         }
 
         function stopLiveMode() {
-            if (liveInterval) {
-                clearInterval(liveInterval);
-                liveInterval = null;
+            if (unsubscribeLive) {
+                unsubscribeLive();
+                unsubscribeLive = null;
             }
             document.getElementById('btn-start-live').innerHTML = "🔴 EN VIVO";
             document.getElementById('btn-start-live').classList.replace('bg-orange-400', 'bg-orange-600');
-        }
-
-        async function pollLiveAudio() {
-            try {
-                const liveRef = ref(storage, 'status/live.txt');
-                const url = await getDownloadURL(liveRef);
-                const response = await fetch(url + "&t=" + Date.now()); // Prevent cache
-                const data = await response.json();
-                
-                if (data.id > lastLiveId) {
-                    lastLiveId = data.id;
-                    playBase64Audio(data.audio);
-                }
-            } catch (e) {
-                // Ignore 404s when live chunk is not yet ready
-            }
         }
 
         function playBase64Audio(base64) {
